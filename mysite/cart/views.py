@@ -1,66 +1,60 @@
-from rest_framework import generics, viewsets, status
+from rest_framework import generics, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from rest_framework.views import APIView
-
+from rest_framework import serializers
 from .models import Cart, CartItem
-from store.models import Product
 from .serializers import CartSerializer, CartItemSerializer
+from store.models import Product
 
-class CartView(generics.RetrieveAPIView):
-    """
-    Retrieve the user's shopping cart.
-    """
-    permission_classes = [IsAuthenticated]
+class CartDetailView(generics.RetrieveAPIView):
     serializer_class = CartSerializer
+    permission_classes = [IsAuthenticated]
 
     def get_object(self):
-        cart, _ = Cart.objects.get_or_create(user=self.request.user)
+        cart, created = Cart.objects.get_or_create(user=self.request.user)
         return cart
 
-class CartItemViewSet(viewsets.ModelViewSet):
-    """
-    ViewSet for managing cart items.
-    """
-    permission_classes = [IsAuthenticated]
+class CartItemView(generics.CreateAPIView):
     serializer_class = CartItemSerializer
+    permission_classes = [IsAuthenticated]
 
-    def get_queryset(self):
-        cart, _ = Cart.objects.get_or_create(user=self.request.user)
-        return CartItem.objects.filter(cart=cart)
+    def perform_create(self, serializer):
+        cart = Cart.objects.get(user=self.request.user)
+        product = serializer.validated_data['product_id']
+        quantity = serializer.validated_data['quantity']
 
-    def create(self, request, *args, **kwargs):
-        cart, _ = Cart.objects.get_or_create(user=self.request.user)
-        
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        
-        product_id = serializer.validated_data['product_id']
-        quantity = serializer.validated_data.get('quantity', 1)
-        
-        product = Product.objects.get(id=product_id)
+        # Check if product is active and in stock
+        try:
+            product_obj = Product.objects.get(id=product, is_active=True, stock_quantity__gte=quantity)
+        except Product.DoesNotExist:
+            raise serializers.ValidationError("Product is not available or out of stock.")
 
+        # Check if item already exists in cart
         cart_item, created = CartItem.objects.get_or_create(
-            cart=cart,
-            product=product,
+            cart=cart, 
+            product=product_obj, 
             defaults={'quantity': quantity}
         )
 
         if not created:
             cart_item.quantity += quantity
             cart_item.save()
+        
+        serializer.instance = cart_item
 
-        serializer = self.get_serializer(cart_item)
-        status_code = status.HTTP_201_CREATED if created else status.HTTP_200_OK
-        return Response(serializer.data, status=status_code)
+class CartItemDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = CartItemSerializer
+    permission_classes = [IsAuthenticated]
+    queryset = CartItem.objects.all()
+    lookup_url_kwarg = 'pk'
 
-class ClearCartView(APIView):
-    """
-    View to clear all items from the shopping cart.
-    """
+    def get_queryset(self):
+        return self.queryset.filter(cart__user=self.request.user)
+
+class CartClearView(generics.GenericAPIView):
     permission_classes = [IsAuthenticated]
 
     def delete(self, request, *args, **kwargs):
-        cart, _ = Cart.objects.get_or_create(user=request.user)
+        cart = Cart.objects.get(user=request.user)
         cart.items.all().delete()
         return Response(status=status.HTTP_204_NO_CONTENT)

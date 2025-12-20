@@ -1,0 +1,125 @@
+This file lists all the API endpoints for the project and provides `curl` commands to test them.
+
+**Note:** Before running the `curl` commands, make sure the Django development server is running. You can start it by running the `web` preview task or by executing `./devserver.sh` in the terminal.
+
+You will also need to replace placeholders like `<your_token>`, `<item_id>`, etc., with actual values.
+
+---
+
+### Authentication (`/api/auth/`)
+
+**1. Register a new user**
+*   **Endpoint:** `POST /api/auth/register/`
+*   **Command:**
+    ```bash
+    curl -X POST -H "Content-Type: application/json" -d '{"username": "testuser", "password": "testpassword", "email": "test@example.com"}' http://localhost:8000/api/auth/register/
+    ```
+*   **Success:** `201 Created` with user data in the response body.
+*   **Failure:** `400 Bad Request` if the data is invalid or the user already exists.
+
+**2. Login to get a token**
+*   **Endpoint:** `POST /api/auth/login/`
+*   **Command:**
+    ```bash
+    curl -X POST -H "Content-Type: application/json" -d '{"username": "testuser", "password": "testpassword"}' http://localhost:8000/api/auth/login/
+    ```
+*   **Success:** `200 OK` with `access` and `refresh` tokens in the response body.
+*   **Failure:** `401 Unauthorized` for invalid credentials.
+
+**3. Refresh a token**
+*   **Endpoint:** `POST /api/auth/refresh/`
+*   **Command:**
+    ```bash
+    curl -X POST -H "Content-Type: application/json" -d '{"refresh": "<your_refresh_token>"}' http://localhost:8000/api/auth/refresh/
+    ```
+*   **Success:** `200 OK` with a new `access` token.
+*   **Failure:** `401 Unauthorized` for an invalid refresh token.
+
+**4. Get user profile**
+*   **Endpoint:** `GET /api/auth/me/`
+*   **Command:**
+    ```bash
+    curl -H "Authorization: Bearer <your_access_token>" http://localhost:8000/api/auth/me/
+    ```
+*   **Success:** `200 OK` with the user's profile information.
+*   **Failure:** `401 Unauthorized` if the token is missing or invalid.
+
+---
+
+### Store (`/api/store/`)
+
+**1. List all products**
+*   **Endpoint:** `GET /api/store/products/`
+*   **Command:**
+    ```bash
+    curl http://localhost:8000/api/store/products/
+    ```
+*   **Success:** `200 OK` with a list of products.
+*   **Failure:** `500 Internal Server Error` if there's a server issue.
+
+**2. Get a single product**
+*   **Endpoint:** `GET /api/store/products/<id>/`
+*   **Command:**
+    ```bash
+    curl http://localhost:8000/api/store/products/1/
+    ```
+*   **Success:** `200 OK` with the product details.
+*   **Failure:** `404 Not Found` if the product does not exist.
+
+**3. List all categories**
+*   **Endpoint:** `GET /api/store/categories/`
+*   **Command:**
+    ```bash
+    curl http://localhost:8000/api/store/categories/
+    ```
+*   **Success:** `200 OK` with a list of categories.
+*   **Failure:** `500 Internal Server Error` if there's a server issue.
+
+---
+
+### Cart (`/api/cart/`)
+
+**1. Get cart details**
+*   **Endpoint:** `GET /api/cart/`
+*   **Command:**
+    ```bash
+    curl -H "Authorization: Bearer <your_access_token>" http://localhost:8000/api/cart/
+    ```
+*   **Success:** `200 OK` with the cart details.
+*   **Failure:** `401 Unauthorized` if the token is missing or invalid.
+
+**2. Add an item to the cart**
+*   **Endpoint:** `POST /api/cart/items/`
+*   **Command:**
+    ```bash
+    curl -X POST -H "Content-Type: application/json" -H "Authorization: Bearer <your_access_token>" -d '{"product_id": 1, "quantity": 1}' http://localhost:8000/api/cart/items/
+    ```
+*   **Success:** `201 Created` with the created cart item.
+*   **Failure:** `400 Bad Request` if the data is invalid. `401 Unauthorized` if the token is missing or invalid.
+
+---
+
+### Orders (`/api/orders/`)
+
+**1. List all orders**
+*   **Endpoint:** `GET /api/orders/orders/`
+*   **Command:**
+    ```bash
+    curl -H "Authorization: Bearer <your_access_token>" http://localhost:8000/api/orders/orders/
+    ```
+*   **Success:** `200 OK` with a list of orders.
+*   **Failure:** `401 Unauthorized` if the token is missing or invalid.
+
+
+###### This is where I am 
+
+
+**2. Create a new order**
+*   **Endpoint:** `POST /api/orders/orders/`
+*   **Command:**
+    ```bash
+    curl -X POST -H "Content-Type: application/json" -H "Authorization: Bearer <your_access_token>" -d '{"cart_id": "<your_cart_id>"}' http://localhost:8000/api/orders/orders/
+    ```
+*   **Success:** `201 Created` with the created order.
+*   **Failure:** `400 Bad Request` if the data is invalid. `401 Unauthorized` if the token is missing or invalid.
+

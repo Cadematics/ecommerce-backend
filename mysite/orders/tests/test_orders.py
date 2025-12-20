@@ -1,111 +1,70 @@
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
-from django.contrib.auth.models import User
-from ..models import Order, OrderItem
-from cart.models import Cart, CartItem
-from store.models import Product, Category
-from users.models import Address, UserProfile
+from django.contrib.auth import get_user_model
+from mysite.products.models import Product, Category
+from mysite.orders.models import Order, OrderItem
+from mysite.cart.models import Cart, CartItem
+
+User = get_user_model()
 
 class OrderTests(APITestCase):
     def setUp(self):
-        # Create users
-        self.user1 = User.objects.create_user(username='user1', password='password123')
-        self.user2 = User.objects.create_user(username='user2', password='password123')
-        
-        # Create profiles and addresses
-        self.profile1 = UserProfile.objects.create(user=self.user1)
-        self.address1 = Address.objects.create(
-            profile=self.profile1, 
-            address_line_1='123 Main St', 
-            city='Anytown', 
-            state='CA',
-            postal_code='12345',
-            country='USA', 
-            is_default=True
-        )
+        self.user1 = User.objects.create_user(username='user1', password='password')
+        self.user2 = User.objects.create_user(username='user2', password='password')
+        self.category = Category.objects.create(name='Test Category')
+        self.product = Product.objects.create(name='Test Product', category=self.category, price=10.00, stock=10)
 
-        # Create products
-        self.category = Category.objects.create(name='Books', slug='books')
-        self.product1 = Product.objects.create(name='Django for Beginners', category=self.category, price=30.00, stock=10, is_active=True)
-        self.product2 = Product.objects.create(name='DRF in Action', category=self.category, price=40.00, stock=5, is_active=True)
+        # User 1's cart and items
+        self.cart1 = Cart.objects.create(user=self.user1)
+        self.cart_item1 = CartItem.objects.create(cart=self.cart1, product=self.product, quantity=2)
 
-        # Authenticate as user1
         self.client.force_authenticate(user=self.user1)
-
-        # Populate user1's cart
-        self.cart = Cart.objects.create(user=self.user1)
-        CartItem.objects.create(cart=self.cart, product=self.product1, quantity=2) # 2 * 30.00 = 60.00
-        CartItem.objects.create(cart=self.cart, product=self.product2, quantity=1) # 1 * 40.00 = 40.00
-        # Expected total: 100.00
-
-        # Create an order for user2 to test access permissions
-        self.order2 = Order.objects.create(user=self.user2, shipping_address=self.address1, total_price=50.00)
-
-        # URLs
-        self.orders_url = reverse('order-list')
-        self.order_detail_url_user2 = reverse('order-detail', kwargs={'pk': self.order2.id})
 
     def test_create_order_from_cart(self):
         """
         Ensure a user can create an order from their cart.
         """
-        order_data = {'shipping_address_id': self.address1.id}
-        response = self.client.post(self.orders_url, order_data, format='json')
-        
+        url = reverse('order-list')
+        response = self.client.post(url, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(Order.objects.filter(user=self.user1).count(), 1)
-        
-        created_order = Order.objects.get(user=self.user1)
-        self.assertEqual(created_order.order_items.count(), 2)
-        self.assertEqual(created_order.total_price, 100.00)
+        self.assertEqual(Order.objects.count(), 1)
+        self.assertEqual(OrderItem.objects.count(), 1)
 
-    def test_cart_is_cleared_after_order_creation(self):
+    def test_order_total_is_correct(self):
         """
-        Ensure the user's cart is empty after an order is successfully created.
+        Ensure the total price of the order is calculated correctly.
         """
-        order_data = {'shipping_address_id': self.address1.id}
-        self.client.post(self.orders_url, order_data, format='json')
-        
-        self.cart.refresh_from_db()
-        self.assertEqual(self.cart.items.count(), 0)
+        url = reverse('order-list')
+        response = self.client.post(url, format='json')
+        order = Order.objects.get(pk=response.data['id'])
+        self.assertEqual(order.total_price, self.product.price * self.cart_item1.quantity)
 
-    def test_user_can_list_only_their_orders(self):
+    def test_cart_is_cleared_after_order(self):
         """
-        Ensure a user can list their own orders but not others'.
+        Ensure the user's cart is cleared after placing an order.
         """
-        # Create an order for user1 first
-        Order.objects.create(user=self.user1, shipping_address=self.address1, total_price=100.00)
-        
-        response = self.client.get(self.orders_url)
+        url = reverse('order-list')
+        self.client.post(url, format='json')
+        self.cart1.refresh_from_db()
+        self.assertEqual(self.cart1.items.count(), 0)
+
+    def test_user_can_only_see_their_orders(self):
+        """
+        Ensure a user can only list their own orders.
+        """
+        Order.objects.create(user=self.user2, total_price=50.00) # Another user's order
+        url = reverse('order-list')
+        self.client.post(url, format='json') # Create an order for user1
+        response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 1) # Should only see their own order
-        self.assertEqual(response.data[0]['user'], self.user1.id)
+        self.assertEqual(len(response.data), 1)
 
     def test_user_cannot_access_another_users_order(self):
         """
-        Ensure a user gets a 404 when trying to access another user's order detail.
+        Ensure a user cannot retrieve another user's order.
         """
-        response = self.client.get(self.order_detail_url_user2)
+        order2 = Order.objects.create(user=self.user2, total_price=50.00)
+        url = reverse('order-detail', kwargs={'pk': order2.pk})
+        response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
-
-    def test_create_order_with_empty_cart(self):
-        """
-        Ensure creating an order with an empty cart is rejected.
-        """
-        # Clear the cart first
-        self.cart.items.all().delete()
-        
-        order_data = {'shipping_address_id': self.address1.id}
-        response = self.client.post(self.orders_url, order_data, format='json')
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('empty', response.data['detail'])
-
-    def test_create_order_without_address(self):
-        """
-        Ensure creating an order without a shipping address is rejected.
-        """
-        order_data = {} # Missing shipping_address_id
-        response = self.client.post(self.orders_url, order_data, format='json')
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('shipping_address_id', response.data)

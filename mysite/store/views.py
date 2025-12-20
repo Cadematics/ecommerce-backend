@@ -5,6 +5,8 @@ from .serializers import CategorySerializer, ProductSerializer
 from .filters import ProductFilter
 from django.shortcuts import render
 from django.views.generic import ListView
+from .pagination import StandardResultsSetPagination
+from django_filters.rest_framework import DjangoFilterBackend
 
 class ProductList(ListView):
     model = Product
@@ -20,7 +22,9 @@ class ProductListView(generics.ListAPIView):
     queryset = Product.objects.filter(is_active=True)
     serializer_class = ProductSerializer
     permission_classes = [AllowAny]
+    filter_backends = [DjangoFilterBackend]
     filterset_class = ProductFilter
+    pagination_class = StandardResultsSetPagination
 
 class ProductDetailView(generics.RetrieveAPIView):
     queryset = Product.objects.filter(is_active=True)

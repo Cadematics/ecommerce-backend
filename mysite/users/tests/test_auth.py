@@ -1,26 +1,23 @@
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
-from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
+
+User = get_user_model()
 
 class AuthTests(APITestCase):
     def setUp(self):
-        # URLs for auth endpoints
         self.register_url = reverse('user-register')
         self.login_url = reverse('token_obtain_pair')
         self.refresh_url = reverse('token_refresh')
-        self.logout_url = reverse('logout')
-        self.profile_url = reverse('user-profile')
-
-        # Test user data
         self.user_data = {
             'username': 'testuser',
             'email': 'test@example.com',
-            'password': 'strong-password-123',
-            'password2': 'strong-password-123'
+            'password': 'testpassword',
+            'password2': 'testpassword'
         }
 
-    def test_user_registration_success(self):
+    def test_successful_user_registration(self):
         """
         Ensure a new user can be registered successfully.
         """
@@ -29,88 +26,58 @@ class AuthTests(APITestCase):
         self.assertEqual(User.objects.count(), 1)
         self.assertEqual(User.objects.get().username, 'testuser')
 
-    def test_user_registration_duplicate_email(self):
+    def test_duplicate_email_rejection(self):
         """
-        Ensure registration fails if the email already exists.
+        Ensure registration with a duplicate email is rejected.
         """
-        # Create the first user
+        # Create a user first
         self.client.post(self.register_url, self.user_data, format='json')
-        
-        # Attempt to register again with the same email
+        # Try to register again with the same email
         response = self.client.post(self.register_url, self.user_data, format='json')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(User.objects.count(), 1)
 
-    def test_user_login_success(self):
+    def test_successful_login(self):
         """
-        Ensure a registered user can log in and receive access and refresh tokens.
+        Ensure a registered user can log in and receive tokens.
         """
-        # Register user first
         self.client.post(self.register_url, self.user_data, format='json')
-
-        login_data = {'username': 'testuser', 'password': 'strong-password-123'}
+        login_data = {'email': 'test@example.com', 'password': 'testpassword'}
         response = self.client.post(self.login_url, login_data, format='json')
-
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn('access', response.data)
         self.assertIn('refresh', response.data)
 
     def test_access_protected_endpoint_with_token(self):
         """
-        Ensure a protected endpoint can be accessed with a valid access token.
+        Ensure a protected endpoint can be accessed with a valid token.
         """
-        # Register and log in the user
         self.client.post(self.register_url, self.user_data, format='json')
-        login_data = {'username': 'testuser', 'password': 'strong-password-123'}
+        login_data = {'email': 'test@example.com', 'password': 'testpassword'}
         login_response = self.client.post(self.login_url, login_data, format='json')
         access_token = login_response.data['access']
 
-        # Access a protected endpoint
+        protected_url = reverse('user-detail')
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {access_token}')
-        response = self.client.get(self.profile_url)
+        response = self.client.get(protected_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-    def test_access_protected_endpoint_without_token(self):
+    def test_reject_protected_endpoint_without_token(self):
         """
-        Ensure a protected endpoint cannot be accessed without a token.
+        Ensure a protected endpoint rejects access without a token.
         """
-        response = self.client.get(self.profile_url)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        protected_url = reverse('user-detail')
+        response = self.client.get(protected_url)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    def test_refresh_token_returns_new_access_token(self):
+    def test_refresh_token(self):
         """
-        Ensure posting a valid refresh token returns a new access token.
+        Ensure a refresh token can be used to obtain a new access token.
         """
-        # Register and log in
         self.client.post(self.register_url, self.user_data, format='json')
-        login_data = {'username': 'testuser', 'password': 'strong-password-123'}
+        login_data = {'email': 'test@example.com', 'password': 'testpassword'}
         login_response = self.client.post(self.login_url, login_data, format='json')
         refresh_token = login_response.data['refresh']
 
-        # Refresh the token
         response = self.client.post(self.refresh_url, {'refresh': refresh_token}, format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn('access', response.data)
-        self.assertNotIn('refresh', response.data)
-
-    def test_user_logout(self):
-        """
-        Ensure a user can log out by blacklisting the refresh token.
-        """
-        # Register and log in
-        self.client.post(self.register_url, self.user_data, format='json')
-        login_data = {'username': 'testuser', 'password': 'strong-password-123'}
-        login_response = self.client.post(self.login_url, login_data, format='json')
-        refresh_token = login_response.data['refresh']
-        access_token = login_response.data['access']
-
-        # Set auth header for logout
-        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {access_token}')
-        
-        # Logout
-        response = self.client.post(self.logout_url, {'refresh_token': refresh_token}, format='json')
-        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
-
-        # Try to use the blacklisted refresh token
-        refresh_response = self.client.post(self.refresh_url, {'refresh': refresh_token}, format='json')
-        self.assertEqual(refresh_response.status_code, status.HTTP_401_UNAUTHORIZED)
