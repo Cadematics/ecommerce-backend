@@ -70,6 +70,7 @@ MIDDLEWARE = [
 
     # ❗ CSRF middleware DISABLED for JWT-based API
     # "django.middleware.csrf.CsrfViewMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",  # 👈 ADD THIS
 
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
@@ -195,3 +196,8 @@ CORS_ALLOW_METHODS = [
     "POST",
     "PUT",
 ]
+
+
+
+
+STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
