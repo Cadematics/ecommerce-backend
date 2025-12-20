@@ -49,13 +49,13 @@ INSTALLED_APPS = [
     "rest_framework_simplejwt.token_blacklist",
 
     # Local apps
-    "users",
-    "store",
-    "cart.apps.CartConfig",
-    "orders",
-    "payments",
-    "admin_api",
-    "pages.apps.PagesConfig",
+    "mysite.users",
+    "mysite.store",
+    "mysite.cart.apps.CartConfig",
+    "mysite.orders",
+    "mysite.payments",
+    "mysite.admin_api",
+    "mysite.pages.apps.PagesConfig",
 ]
 
 # =========================================================
