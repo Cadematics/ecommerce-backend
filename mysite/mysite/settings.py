@@ -201,3 +201,9 @@ CORS_ALLOW_METHODS = [
 
 
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+
+# settings.py (Render backend)
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+    "https://*.cloudworkstations.dev",
+]

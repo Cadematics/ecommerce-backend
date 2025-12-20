@@ -4,11 +4,11 @@ from .views import (
     ProductListView,
     ProductDetailView,
     FeaturedProductListView,
-    ProductList
+    LandingPageView
 )
 
 urlpatterns = [
-    path('', ProductList.as_view(), name='product-list-home'),
+    path('', LandingPageView.as_view(), name='landing-page'),
     path('categories/', CategoryListView.as_view(), name='category-list'),
     path('products/', ProductListView.as_view(), name='product-list'),
     path('products/featured/', FeaturedProductListView.as_view(), name='featured-product-list'),

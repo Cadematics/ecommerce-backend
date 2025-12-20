@@ -4,9 +4,13 @@ from .models import Category, Product
 from .serializers import CategorySerializer, ProductSerializer
 from .filters import ProductFilter
 from django.shortcuts import render
-from django.views.generic import ListView
+from django.views.generic import ListView, View
 from .pagination import StandardResultsSetPagination
 from django_filters.rest_framework import DjangoFilterBackend
+
+class LandingPageView(View):
+    def get(self, request, *args, **kwargs):
+        return render(request, 'landing.html')
 
 class ProductList(ListView):
     model = Product
